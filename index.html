@@ -21,9 +21,9 @@
         </div>
 
         <div class="input-section">
-            <label for="syllables">音節数 (母音の数と仮定):</label>
-            <input type="number" id="syllables" min="0" value="2" disabled>
-            <p class="note">※音節数は母音の数と同じになります。</p>
+            <label for="syllables">音節数:</label>
+            <input type="number" id="syllables" min="1" value="2">
+            <p class="note">※音節数は、単語の概算の長さに影響します。</p>
         </div>
 
         <div class="input-section">
@@ -36,12 +36,14 @@
 
         <div class="result-section">
             <h2>計算結果</h2>
-            <p><strong>総文字数 (基準):</strong> <span id="totalLength">0</span></p>
+            <p><strong>概算単語長 (音節数と子音・母音数から推定):</strong> <span id="estimatedLength">0</span></p>
             <p><strong>可能性のある単語の組み合わせ数 (概算):</strong> <span id="possibleWords">0</span></p>
             <p class="warning">
                 ※ このツールは、入力された条件を満たす「文字の組み合わせ」の概算数を計算します。
                 実際に存在する単語を生成するわけではありません。
                 レーベンシュタイン距離は、単語の長さの許容範囲として解釈されます。
+                音節構造を厳密に考慮した計算は非常に複雑なため、
+                音節数からは単語の「目安の長さ」を推定して利用しています。
             </p>
         </div>
     </div>
