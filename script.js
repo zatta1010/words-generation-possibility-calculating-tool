@@ -1,93 +1,156 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const consonantsInput = document.getElementById('consonants');
-    const vowelsInput = document.getElementById('vowels');
+    const referenceWordInput = document.getElementById('referenceWord');
+    const consonantTypesInput = document.getElementById('consonantTypes');
+    const vowelTypesInput = document.getElementById('vowelTypes');
     const syllablesInput = document.getElementById('syllables');
-    const levenshteinInput = document.getElementById('levenshtein');
+    const levenshteinDistanceLimitInput = document.getElementById('levenshteinDistanceLimit');
     const calculateButton = document.getElementById('calculateButton');
-    const estimatedLengthSpan = document.getElementById('estimatedLength'); // 表示要素の名前を変更
-    const possibleWordsSpan = document.getElementById('possibleWords');
+
+    const totalGeneratedWordsSpan = document.getElementById('totalGeneratedWords');
+    const wordsWithinDistanceSpan = document.getElementById('wordsWithinDistance');
+    const wordsOutsideDistanceSpan = document.getElementById('wordsOutsideDistance');
+    const levDistanceLimitDisplaySpan = document.getElementById('levDistanceLimitDisplay');
+    const levDistanceLimitDisplay2Span = document.getElementById('levDistanceLimitDisplay2');
+
+    // レーベンシュタイン距離を計算する関数 (標準的な実装)
+    function calculateLevenshteinDistance(a, b) {
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+
+        const matrix = [];
+
+        // increment along the first column of each row
+        for (let i = 0; i <= b.length; i++) {
+            matrix[i] = [i];
+        }
+
+        // increment each column in the first row
+        for (let j = 0; j <= a.length; j++) {
+            matrix[0][j] = j;
+        }
+
+        // Fill in the rest of the matrix
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                const cost = (a.charAt(j - 1) === b.charAt(i - 1)) ? 0 : 1;
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j] + 1,      // deletion
+                    matrix[i][j - 1] + 1,      // insertion
+                    matrix[i - 1][j - 1] + cost   // substitution
+                );
+            }
+        }
+
+        return matrix[b.length][a.length];
+    }
+
+    // 全てのCV型単語を生成する関数
+    function generateCVSyllableWords(numSyllables, consonantTypes, vowelTypes) {
+        const generatedWords = [];
+        const consonants = Array.from({ length: consonantTypes }, (_, i) => String.fromCharCode(97 + i)); // 'a', 'b', 'c'...
+        const vowels = Array.from({ length: vowelTypes }, (_, i) => String.fromCharCode(65 + i)); // 'A', 'B', 'C'...
+
+        // 例: 子音3, 母音2 の場合、consonants = ['a','b','c'], vowels = ['A','B']
+        // CV音節の例: aA, aB, bA, bB, cA, cB
+        
+        // 組み合わせが多すぎる場合の警告閾値
+        const MAX_WORDS_LIMIT = 50000; // この数を超えると処理が重くなる可能性
+
+        // 1音節あたりの組み合わせ数
+        const combinationsPerCVSyllable = consonants.length * vowels.length;
+        if (combinationsPerCVSyllable === 0) return []; // 種類が0なら生成しない
+
+        const totalExpectedWords = Math.pow(combinationsPerCVSyllable, numSyllables);
+        if (totalExpectedWords > MAX_WORDS_LIMIT) {
+            alert(`警告: 生成される単語の概算数が ${MAX_WORDS_LIMIT} を超える可能性があります (${totalExpectedWords.toLocaleString()}通り)。\nブラウザがフリーズする恐れがあります。入力値を減らしてください。`);
+            return []; // 生成を中止
+        }
+
+
+        function generate(currentWord, remainingSyllables) {
+            if (remainingSyllables === 0) {
+                generatedWords.push(currentWord);
+                return;
+            }
+
+            for (const c of consonants) {
+                for (const v of vowels) {
+                    // 各音節は '子音+母音' の形式
+                    generate(currentWord + c + v, remainingSyllables - 1);
+                }
+            }
+        }
+
+        generate('', numSyllables); // 初期呼び出し
+        return generatedWords;
+    }
+
 
     calculateButton.addEventListener('click', () => {
-        const numConsonants = parseInt(consonantsInput.value);
-        const numVowels = parseInt(vowelsInput.value);
-        const numSyllables = parseInt(syllablesInput.value); // 音節数を取得
-        const targetLevenshtein = parseInt(levenshteinInput.value);
+        const referenceWord = referenceWordInput.value.trim();
+        const numConsonantTypes = parseInt(consonantTypesInput.value);
+        const numVowelTypes = parseInt(vowelTypesInput.value);
+        const numSyllables = parseInt(syllablesInput.value);
+        const levenshteinLimit = parseInt(levenshteinDistanceLimitInput.value);
 
-        if (isNaN(numConsonants) || numConsonants < 0 ||
-            isNaN(numVowels) || numVowels < 0 ||
-            isNaN(numSyllables) || numSyllables < 1 || // 音節数は1以上
-            isNaN(targetLevenshtein) || targetLevenshtein < 0) {
-            alert('すべての入力項目に0以上の有効な数値を入力してください。\n(音節数は1以上)');
+        if (referenceWord === '') {
+            alert('基準単語を入力してください。');
+            return;
+        }
+        if (isNaN(numConsonantTypes) || numConsonantTypes < 1 ||
+            isNaN(numVowelTypes) || numVowelTypes < 1 ||
+            isNaN(numSyllables) || numSyllables < 1 ||
+            isNaN(levenshteinLimit) || levenshteinLimit < 0) {
+            alert('すべての数値項目に1以上の有効な数値を入力してください。\n(目標レーベンシュタイン距離は0以上)');
             return;
         }
 
-        // --- 概算単語長の決定ロジック ---
-        // ここが重要な変更点です。
-        // 音節数と子音・母音の数から、単語の概算の長さを決定します。
-        // 一般的に、1音節は母音1つと、それに先行する子音で構成されることが多いです (例: CV, V)。
-        // 非常に単純化されたモデルとして、
-        // 1音節あたり平均2文字 (子音1, 母音1) と仮定し、そこに子音・母音の過不足を補正します。
+        // UIの表示をリセット
+        totalGeneratedWordsSpan.textContent = '計算中...';
+        wordsWithinDistanceSpan.textContent = '計算中...';
+        wordsOutsideDistanceSpan.textContent = '計算中...';
+        levDistanceLimitDisplaySpan.textContent = levenshteinLimit;
+        levDistanceLimitDisplay2Span.textContent = levenshteinLimit;
 
-        let baseLength = 0;
-        if (numSyllables > 0) {
-            // 音節数に基づいて最低限の長さを計算
-            // 例: 3音節なら最低3文字 (V-V-V) または 6文字 (CV-CV-CV)
-            // ここでは1音節あたり平均1.5〜2文字程度を想定
-            baseLength = Math.ceil(numSyllables * 1.5) + Math.max(0, numConsonants - numVowels);
-            // あるいは、子音数と母音数の合計をベースとし、音節数で調整する
-            // 例: (numConsonants + numVowels) をそのまま使うか、音節数に合わせて重み付け
-            // 今回は、最も単純に子音数 + 母音数 を「基本の文字数」とし、音節数を「単語の構成単位」として別途考慮します。
-            baseLength = numConsonants + numVowels; // 基本の文字長はこれまで通り子音+母音
-        } else {
-            baseLength = numConsonants + numVowels;
+
+        console.log('--- 計算開始 ---');
+        console.log('基準単語:', referenceWord);
+        console.log('子音の種類数:', numConsonantTypes);
+        console.log('母音の種類数:', numVowelTypes);
+        console.log('音節数:', numSyllables);
+        console.log('目標レーベンシュタイン距離:', levenshteinLimit);
+
+
+        const generatedWords = generateCVSyllableWords(numSyllables, numConsonantTypes, numVowelTypes);
+        
+        // 生成が中止された場合
+        if (generatedWords.length === 0 && Math.pow(numConsonantTypes * numVowelTypes, numSyllables) > 50000) {
+             totalGeneratedWordsSpan.textContent = '---';
+             wordsWithinDistanceSpan.textContent = '---';
+             wordsOutsideDistanceSpan.textContent = '---';
+             return;
         }
 
-        // 音節数を考慮した「推奨される」単語の長さの目安
-        // 例えば、音節数3でCV構成なら6文字、V構成なら3文字。
-        // ここでは、子音・母音の指定数と音節数の両方を考慮して、単語の長さを「より妥当な範囲」に絞ることを試みます。
-        // 「音節数 * 平均文字数/音節」を基準とし、それに子音・母音数を加味
-        // 日本語の場合、1音節は通常1-3文字程度 (例: 'あ' (1), 'か' (2), 'ん' (1), 'きょ' (2), 'っか' (3))
-        // 最も単純なアプローチとして、母音の数＝音節数 とし、それに子音数を足す方式に戻しつつ、
-        // 入力された音節数とは乖離しないように調整します。
-        // もし入力された音節数の方が母音数より大きい場合、その差を埋めるために追加の文字（空白、または不定）があると考えます。
+        console.log('生成された単語の総数:', generatedWords.length);
+        totalGeneratedWordsSpan.textContent = generatedWords.length.toLocaleString();
 
-        // 新しい単語長推定ロジック (より音節数を重視)
-        // 基本的な単語長は音節数 * 2 (子音+母音を想定) とし、
-        // 実際の入力子音・母音数がそれとどれくらい違うかを考慮します。
-        const estimatedBaseLength = Math.max(numSyllables, numConsonants + numVowels); // 少なくとも音節数か、子音+母音数分の長さ
-        
-        // 音節の構造を完全にモデル化するのはこのツールの範囲を超えるため、
-        // ここでは「単語は平均的に1音節あたりX文字で構成される」という単純な仮定に基づきます。
-        // 例えば、日本語では平均1音節あたり約1.5文字～2文字程度と言われます。
-        // ここでは便宜上、音節数 * 1.5 と 子音数 + 母音数 の平均を取るか、大きい方を取ります。
-        const baseLengthForCalc = Math.ceil((numSyllables * 1.5 + (numConsonants + numVowels)) / 2);
-        
-        estimatedLengthSpan.textContent = baseLengthForCalc;
+        let countWithinDistance = 0;
+        let countOutsideDistance = 0;
 
-        // レーベンシュタイン距離を「単語の長さの許容範囲」として利用
-        const minLength = Math.max(0, baseLengthForCalc - targetLevenshtein);
-        const maxLength = baseLengthForCalc + targetLevenshtein;
-
-        let totalPossibleCombinations = 0;
-
-        // 考慮する文字の種類
-        const numberOfConsonantTypes = 20; // 例: k, s, t, n, h, m, y, r, w, g, z, d, b, p, ch, sh, j, f, ts, h (small variants excluded)
-        const numberOfVowelTypes = 5;    // a, i, u, e, o
-        const totalCharacterTypes = numberOfConsonantTypes + numberOfVowelTypes;
-
-        for (let currentLength = minLength; currentLength <= maxLength; currentLength++) {
-            if (currentLength === 0) continue;
-
-            // 非常に単純化された計算:
-            // 各文字位置が子音または母音のどちらかであると仮定し、それぞれの種類の数を乗算
-            // 音節構造や子音・母音の厳密な配置ルールはここでは考慮していません。
-            // また、指定された子音数と母音数が、この currentLength に「ぴったり」収まる保証もありません。
-            // これはあくまで「その長さの文字列がどれだけ作れるか」の概算です。
-            const combinationsForCurrentLength = Math.pow(totalCharacterTypes, currentLength);
-            totalPossibleCombinations += combinationsForCurrentLength;
+        for (const word of generatedWords) {
+            const distance = calculateLevenshteinDistance(referenceWord, word);
+            if (distance <= levenshteinLimit) {
+                countWithinDistance++;
+            } else {
+                countOutsideDistance++;
+            }
         }
 
-        // 非常に大きな数になる可能性があるため、科学的表記に変換
-        possibleWordsSpan.textContent = totalPossibleCombinations.toExponential(2); // 小数点以下2桁
+        wordsWithinDistanceSpan.textContent = countWithinDistance.toLocaleString();
+        wordsOutsideDistanceSpan.textContent = countOutsideDistance.toLocaleString();
+
+        console.log('レーベンシュタイン距離 ≤', levenshteinLimit, 'の単語数:', countWithinDistance);
+        console.log('レーベンシュタイン距離 >', levenshteinLimit, 'の単語数:', countOutsideDistance);
+        console.log('--- 計算終了 ---');
     });
 });

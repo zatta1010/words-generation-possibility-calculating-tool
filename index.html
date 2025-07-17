@@ -8,42 +8,50 @@
 </head>
 <body>
     <div class="container">
-        <h1>単語生成可能性計算ツール</h1>
+        <h1>単語生成可能性計算ツール (実験版)</h1>
 
         <div class="input-section">
-            <label for="consonants">子音の数:</label>
-            <input type="number" id="consonants" min="0" value="3">
+            <label for="referenceWord">基準単語:</label>
+            <input type="text" id="referenceWord" value="かみ">
+            <p class="note">※この単語とのレーベンシュタイン距離を計算します。</p>
         </div>
 
         <div class="input-section">
-            <label for="vowels">母音の数:</label>
-            <input type="number" id="vowels" min="0" value="2">
+            <label for="consonantTypes">子音の種類数 (概算):</label>
+            <input type="number" id="consonantTypes" min="1" value="3">
+            <p class="note">※生成される単語のCV型子音に使える種類数。</p>
         </div>
 
         <div class="input-section">
-            <label for="syllables">音節数:</label>
+            <label for="vowelTypes">母音の種類数 (概算):</label>
+            <input type="number" id="vowelTypes" min="1" value="2">
+            <p class="note">※生成される単語のCV型母音に使える種類数。</p>
+        </div>
+
+        <div class="input-section">
+            <label for="syllables">音節数 (CV型と仮定):</label>
             <input type="number" id="syllables" min="1" value="2">
-            <p class="note">※音節数は、単語の概算の長さに影響します。</p>
+            <p class="note">※生成する単語の音節数。全ての音節がCV型と仮定。</p>
         </div>
 
         <div class="input-section">
-            <label for="levenshtein">目標レーベンシュタイン距離 (単語の長さの許容範囲として解釈):</label>
-            <input type="number" id="levenshtein" min="0" value="1">
-            <p class="note">※この値は、単語の長さの基準からの許容誤差として概算に利用されます。</p>
+            <label for="levenshteinDistanceLimit">目標レーベンシュタイン距離の最大値:</label>
+            <input type="number" id="levenshteinDistanceLimit" min="0" value="1">
+            <p class="note">※この距離以下の単語と、それ以外の単語を分類します。</p>
         </div>
 
         <button id="calculateButton">可能性を計算</button>
 
         <div class="result-section">
             <h2>計算結果</h2>
-            <p><strong>概算単語長 (音節数と子音・母音数から推定):</strong> <span id="estimatedLength">0</span></p>
-            <p><strong>可能性のある単語の組み合わせ数 (概算):</strong> <span id="possibleWords">0</span></p>
+            <p><strong>生成された単語の総数:</strong> <span id="totalGeneratedWords">0</span></p>
+            <p><strong>レーベンシュタイン距離 ≤ <span id="levDistanceLimitDisplay">0</span> の単語数:</strong> <span id="wordsWithinDistance">0</span></p>
+            <p><strong>レーベンシュタイン距離 > <span id="levDistanceLimitDisplay2">0</span> の単語数 (引いた数):</strong> <span id="wordsOutsideDistance">0</span></p>
             <p class="warning">
-                ※ このツールは、入力された条件を満たす「文字の組み合わせ」の概算数を計算します。
-                実際に存在する単語を生成するわけではありません。
-                レーベンシュタイン距離は、単語の長さの許容範囲として解釈されます。
-                音節構造を厳密に考慮した計算は非常に複雑なため、
-                音節数からは単語の「目安の長さ」を推定して利用しています。
+                ※ このツールは、入力された条件で**全てのCV型単語候補を生成し、基準単語とのレーベンシュタイン距離を計算**します。<br>
+                生成される単語数が膨大になると、**ブラウザがフリーズする可能性**があります。<br>
+                「子音の種類数」「母音の種類数」「音節数」は、少なめに設定してください。<br>
+                **例: 子音3、母音2、音節2 -> 36通り程度**
             </p>
         </div>
     </div>
